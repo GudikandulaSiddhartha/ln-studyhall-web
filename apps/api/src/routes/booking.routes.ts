@@ -69,7 +69,7 @@ bookingRouter.post("/", requireAuth, validate(createBookingSchema), async (reque
     if (startAt >= endAt) return response.status(400).json({ message: "End time must be after start time" });
 
     const booking = await prisma.$transaction(
-      async (transaction) => {
+      async (transaction: Prisma.TransactionClient) => {
         await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.seatId}))`;
 
         const seat = await transaction.seat.findFirst({
