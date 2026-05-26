@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
@@ -84,7 +85,7 @@ bookingRouter.post(
           .json({ message: "End time must be after start time" });
       }
 
-      const booking = await prisma.$transaction(async (transaction) => {
+      const booking = await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
         await transaction.$executeRaw`
           SELECT pg_advisory_xact_lock(hashtext(${input.seatId}))
         `;
