@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --background: 248 246 240;
+  --foreground: 11 16 32;
+  --muted: 102 112 133;
+  --surface: 255 255 255;
+  --ring: 214 169 75;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: 7 11 24;
+  --foreground: 236 244 255;
+  --muted: 148 163 184;
+  --surface: 15 23 42;
+  --ring: 96 165 250;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(45, 212, 191, .16), transparent 32rem),
+    radial-gradient(circle at 80% 10%, rgba(214, 169, 75, .16), transparent 26rem),
+    rgb(var(--background));
+  color: rgb(var(--foreground));
+  overflow-x: hidden;
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at top left, rgba(96, 165, 250, .23), transparent 34rem),
+    radial-gradient(circle at 90% 20%, rgba(139, 92, 246, .18), transparent 26rem),
+    #070b18;
+}
+
+::selection {
+  background: rgba(45, 212, 191, .35);
+}
+
+.glass {
+  border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(255, 255, 255, .68);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, .1);
+  backdrop-filter: blur(22px);
+}
+
+.dark .glass {
+  border-color: rgba(148, 163, 184, .22);
+  background: rgba(15, 23, 42, .55);
+  box-shadow: 0 24px 90px rgba(0, 0, 0, .28);
+}
+
+.premium-gradient {
+  background: linear-gradient(115deg, #0b1020, #1d4ed8, #2dd4bf, #d6a94b, #0b1020);
+  background-size: 220% 220%;
+}
+
+.cursor-glow {
+  pointer-events: none;
+  position: fixed;
+  inset: auto;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(45, 212, 191, .18), transparent 64%);
+  filter: blur(8px);
+  transform: translate(-50%, -50%);
+  z-index: 5;
+}
+
+.dark .cursor-glow {
+  background: radial-gradient(circle, rgba(96, 165, 250, .2), transparent 64%);
+}
+
+.book-cover {
+  transform-style: preserve-3d;
+  perspective: 1200px;
+}
+
+.book-page {
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+.lamp-beam {
+  clip-path: polygon(45% 0, 55% 0, 92% 100%, 8% 100%);
+  opacity: .58;
+  filter: blur(.4px);
+}
+
+.dark .lamp-beam {
+  opacity: .08;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

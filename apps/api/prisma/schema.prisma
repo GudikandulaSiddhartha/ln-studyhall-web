@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum SeatStatus {
+  AVAILABLE
+  BOOKED
+  BLOCKED
+  MAINTENANCE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  INITIATED
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  BOOKING
+  PAYMENT
+  SYSTEM
+  PROMOTION
+}
+
+model User {
+  id             String         @id @default(cuid())
+  name           String
+  email          String         @unique
+  phone          String?
+  passwordHash   String?
+  googleId       String?        @unique
+  role           Role           @default(USER)
+  avatarUrl      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  bookings       Booking[]
+  payments       Payment[]
+  memberships    UserMembership[]
+  notifications  Notification[]
+  chatLogs       ChatLog[]
+  attendances    Attendance[]
+  admin          Admin?
+}
+
+model Admin {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  permissions String[]
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Branch {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  address     String
+  landmark    String?
+  phone       String
+  latitude    Decimal   @db.Decimal(10, 7)
+  longitude   Decimal   @db.Decimal(10, 7)
+  openHours   String
+  facilities  String[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  seats       Seat[]
+  photos      Photo[]
+  bookings    Booking[]
+}
+
+model Seat {
+  id         String      @id @default(cuid())
+  label      String
+  branchId   String
+  status     SeatStatus  @default(AVAILABLE)
+  zone       String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  branch     Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  bookings   Booking[]
+
+  @@unique([branchId, label])
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  userId      String
+  branchId    String
+  seatId      String
+  startAt     DateTime
+  endAt       DateTime
+  qrToken     String        @unique
+  status      BookingStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch      Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  seat        Seat          @relation(fields: [seatId], references: [id], onDelete: Cascade)
+  payment     Payment?
+  attendances Attendance[]
+
+  @@index([branchId, startAt, endAt])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  userId         String
+  bookingId      String?       @unique
+  membershipId   String?
+  provider       String
+  providerRef    String?
+  amount         Int
+  currency       String        @default("INR")
+  status         PaymentStatus @default(INITIATED)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking        Booking?      @relation(fields: [bookingId], references: [id])
+  membership     Membership?   @relation(fields: [membershipId], references: [id])
+}
+
+model Membership {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  price       Int
+  durationDays Int
+  benefits    String[]
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  users       UserMembership[]
+  payments    Payment[]
+}
+
+model UserMembership {
+  id            String     @id @default(cuid())
+  userId        String
+  membershipId  String
+  startsAt      DateTime
+  endsAt        DateTime
+  isActive      Boolean    @default(true)
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membership    Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String?
+  title     String
+  body      String
+  type      NotificationType @default(SYSTEM)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ChatLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  locale    String   @default("en-IN")
+  prompt    String
+  response  String
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Photo {
+  id          String   @id @default(cuid())
+  branchId    String
+  title       String
+  url         String
+  publicId    String?
+  isBefore    Boolean  @default(false)
+  isAfter     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  userId    String
+  bookingId String
+  checkedInAt DateTime @default(now())
+  checkedOutAt DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
