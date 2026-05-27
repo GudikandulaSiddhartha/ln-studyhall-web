@@ -8,6 +8,7 @@ import { ShieldCheck, UserRound, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { auth, storeAuth, ApiError } from "@/lib/api";
 
 type Role = "user" | "admin";
 
@@ -20,18 +21,6 @@ type FormState = {
 };
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
-
-type AuthResponse = {
-  token: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: "USER" | "ADMIN" | "SUPER_ADMIN";
-  };
-};
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
 const initialForm: FormState = {
   name: "",
@@ -50,9 +39,11 @@ function validateForm(values: FormState, role: Role) {
 
   if (values.name.trim().length < 2) errors.name = "Enter your full name.";
   if (!validateEmail(values.email)) errors.email = "Enter a valid email address.";
-  if (values.phone && values.phone.replace(/\D/g, "").length < 10) errors.phone = "Enter a valid phone number.";
+  if (values.phone && values.phone.replace(/\D/g, "").length < 10)
+    errors.phone = "Enter a valid phone number.";
   if (values.password.length < 8) errors.password = "Password must be at least 8 characters.";
-  if (role === "admin" && values.inviteCode.trim().length < 8) errors.inviteCode = "Admin invite code is required.";
+  if (role === "admin" && values.inviteCode.trim().length < 8)
+    errors.inviteCode = "Admin invite code is required.";
 
   return errors;
 }
@@ -66,7 +57,11 @@ export function RegisterForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const endpoint = useMemo(() => (role === "admin" ? "/auth/register/admin" : "/auth/register"), [role]);
+  const endpoint = useMemo(
+    () => (role === "admin" ? "/auth/register/admin" : "/auth/register"),
+    [role]
+  );
+  void endpoint; // used via api client below
 
   function updateField(field: keyof FormState, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -85,36 +80,39 @@ export function RegisterForm() {
 
     setLoading(true);
 
-    const payload: Record<string, string> = {
-      name: values.name.trim(),
-      email: values.email.trim(),
-      phone: values.phone.trim(),
-      password: values.password
-    };
-
-    if (role === "admin") {
-      payload.inviteCode = values.inviteCode.trim();
-    }
-
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      const payload = {
+        name: values.name.trim(),
+        email: values.email.trim(),
+        phone: values.phone.trim() || undefined,
+        password: values.password,
+        ...(role === "admin" ? { inviteCode: values.inviteCode.trim() } : {})
+      };
 
-      const data = (await response.json()) as AuthResponse | { message?: string };
-      if (!response.ok) {
-        throw new Error("message" in data && data.message ? data.message : "Registration failed");
-      }
+      const result =
+        role === "admin"
+          ? await auth.registerAdmin(payload as Parameters<typeof auth.registerAdmin>[0])
+          : await auth.register(payload);
 
-      const auth = data as AuthResponse;
-      localStorage.setItem("ln_auth_token", auth.token);
-      localStorage.setItem("ln_auth_user", JSON.stringify(auth.user));
-      setMessage(role === "admin" ? "Admin account created. Opening admin dashboard..." : "Account created. Opening user dashboard...");
+      storeAuth(result.token, result.user);
+      setMessage(
+        role === "admin"
+          ? "Admin account created. Opening admin dashboard..."
+          : "Account created. Opening user dashboard..."
+      );
       router.push(role === "admin" ? "/admin" : "/dashboard");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Registration failed");
+      if (caught instanceof ApiError) {
+        if (caught.code === "NETWORK") {
+          setError("Cannot connect to the server. Please try again in a moment.");
+        } else if (caught.code === "AUTH") {
+          setError("Invalid credentials or invite code.");
+        } else {
+          setError(caught.message || "Registration failed. Please try again.");
+        }
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -128,45 +126,101 @@ export function RegisterForm() {
           onClick={() => setRole("user")}
           className={cn(
             "rounded-lg border p-4 text-left transition hover:-translate-y-0.5",
-            role === "user" ? "border-lagoon bg-lagoon/10 shadow-glow" : "border-black/10 bg-white/35 dark:border-white/10 dark:bg-white/5"
+            role === "user"
+              ? "border-lagoon bg-lagoon/10 shadow-glow"
+              : "border-black/10 bg-white/35 dark:border-white/10 dark:bg-white/5"
           )}
         >
           <UserRound className="mb-3 h-5 w-5 text-lagoon" />
           <span className="block font-semibold">User</span>
-          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Student dashboard</span>
+          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+            Student dashboard
+          </span>
         </button>
         <button
           type="button"
           onClick={() => setRole("admin")}
           className={cn(
             "rounded-lg border p-4 text-left transition hover:-translate-y-0.5",
-            role === "admin" ? "border-brass bg-brass/10 shadow-warm" : "border-black/10 bg-white/35 dark:border-white/10 dark:bg-white/5"
+            role === "admin"
+              ? "border-brass bg-brass/10 shadow-warm"
+              : "border-black/10 bg-white/35 dark:border-white/10 dark:bg-white/5"
           )}
         >
           <ShieldCheck className="mb-3 h-5 w-5 text-brass" />
           <span className="block font-semibold">Admin</span>
-          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Invite code required</span>
+          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+            Invite code required
+          </span>
         </button>
       </div>
 
       <form onSubmit={onSubmit} noValidate className="grid gap-4">
-        <AuthInput label="Full name" value={values.name} error={fieldErrors.name} placeholder="Enter full name" onChange={(value) => updateField("name", value)} />
-        <AuthInput label="Email" type="email" value={values.email} error={fieldErrors.email} placeholder="name@example.com" onChange={(value) => updateField("email", value)} />
-        <AuthInput label="Phone" value={values.phone} error={fieldErrors.phone} placeholder="+91 8555227719" onChange={(value) => updateField("phone", value)} />
-        <AuthInput label="Password" type="password" value={values.password} error={fieldErrors.password} placeholder="Minimum 8 characters" onChange={(value) => updateField("password", value)} />
+        <AuthInput
+          label="Full name"
+          value={values.name}
+          error={fieldErrors.name}
+          placeholder="Enter full name"
+          onChange={(value) => updateField("name", value)}
+        />
+        <AuthInput
+          label="Email"
+          type="email"
+          value={values.email}
+          error={fieldErrors.email}
+          placeholder="name@example.com"
+          onChange={(value) => updateField("email", value)}
+        />
+        <AuthInput
+          label="Phone"
+          value={values.phone}
+          error={fieldErrors.phone}
+          placeholder="+91 8555227719"
+          onChange={(value) => updateField("phone", value)}
+        />
+        <AuthInput
+          label="Password"
+          type="password"
+          value={values.password}
+          error={fieldErrors.password}
+          placeholder="Minimum 8 characters"
+          onChange={(value) => updateField("password", value)}
+        />
         {role === "admin" ? (
-          <AuthInput label="Admin invite code" value={values.inviteCode} error={fieldErrors.inviteCode} placeholder="Private admin code" onChange={(value) => updateField("inviteCode", value)} accent="brass" />
+          <AuthInput
+            label="Admin invite code"
+            value={values.inviteCode}
+            error={fieldErrors.inviteCode}
+            placeholder="Private admin code"
+            onChange={(value) => updateField("inviteCode", value)}
+            accent="brass"
+          />
         ) : null}
 
-        {error ? <p className="rounded-md border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-300">{error}</p> : null}
-        {message ? <p className="rounded-md border border-lagoon/25 bg-lagoon/10 p-3 text-sm text-lagoon">{message}</p> : null}
+        {error ? (
+          <p className="rounded-md border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-300">
+            {error}
+          </p>
+        ) : null}
+        {message ? (
+          <p className="rounded-md border border-lagoon/25 bg-lagoon/10 p-3 text-sm text-lagoon">
+            {message}
+          </p>
+        ) : null}
 
         <Button type="submit" variant="premium" className="mt-2 w-full" disabled={loading}>
           <UserPlus className="h-4 w-4" />
-          {loading ? "Creating account..." : role === "admin" ? "Create admin account" : "Create user account"}
+          {loading
+            ? "Creating account..."
+            : role === "admin"
+            ? "Create admin account"
+            : "Create user account"}
         </Button>
         <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-          Already have an account? <Link href="/signin" className="font-semibold text-lagoon">Sign in</Link>
+          Already have an account?{" "}
+          <Link href="/signin" className="font-semibold text-lagoon">
+            Sign in
+          </Link>
         </p>
       </form>
     </Card>
@@ -205,7 +259,9 @@ function AuthInput({
         )}
         placeholder={placeholder}
       />
-      {error ? <span className="text-xs font-medium text-red-600 dark:text-red-300">{error}</span> : null}
+      {error ? (
+        <span className="text-xs font-medium text-red-600 dark:text-red-300">{error}</span>
+      ) : null}
     </label>
   );
 }
