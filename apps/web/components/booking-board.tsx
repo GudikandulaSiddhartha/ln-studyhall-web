@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { motion } from "framer-motion";
+import { getStoredAuth } from "@/lib/api";
 import { Building2, CalendarClock, CheckCircle2, CreditCard, MapPin, QrCode } from "lucide-react";
 import { branches } from "@/lib/data";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,8 @@ export function BookingBoard() {
   const [selected, setSelected] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [reservedSeats, setReservedSeats] = useState<string[]>([]);
+  const [userName, setUserName] = useState<string>("");
+  const [userPhone, setUserPhone] = useState<string>("");
   const startDate = useMemo(() => new Date(), []);
   const endDate = useMemo(() => addDays(startDate, 30), [startDate]);
   const selectedBranch = branches.find((branch) => branch.id === branchId) ?? branches[0];
@@ -66,9 +69,12 @@ export function BookingBoard() {
   }, [endDate, selected, selectedBranch.name, startDate]);
 
   useEffect(() => {
+    const auth = getStoredAuth();
+    if (auth) {
+      setUserName(auth.user.name);
+    }
     const storedSeats = localStorage.getItem("ln_reserved_seats");
     if (!storedSeats) return;
-
     try {
       const parsedSeats = JSON.parse(storedSeats);
       if (Array.isArray(parsedSeats)) {
@@ -195,19 +201,22 @@ export function BookingBoard() {
             <CalendarClock className="h-5 w-5 text-lagoon" />
             <h3 className="text-xl font-semibold">Booking summary</h3>
           </div>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between gap-4"><span>Branch</span><span className="text-right font-semibold">{selectedBranch.name}</span></div>
-            <div className="flex justify-between gap-4"><span>Address</span><span className="text-right font-semibold">{selectedBranch.landmark}</span></div>
-            <div className="flex justify-between"><span>Seat</span><span className="font-semibold">{selected ?? "Choose seat"}</span></div>
-            <div className="flex justify-between"><span>Hours</span><span className="font-semibold">{selectedBranch.hours}</span></div>
-            <div className="flex justify-between"><span>Plan</span><span className="font-semibold">Monthly Pass</span></div>
-            <div className="flex justify-between"><span>Amount</span><span className="font-semibold">Rs {monthlyAmount}</span></div>
-            <div className="flex justify-between"><span>Start date</span><span className="font-semibold">{formatDate(startDate)}</span></div>
-            <div className="flex justify-between"><span>End date</span><span className="font-semibold">{formatDate(endDate)}</span></div>
-          </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4"><span>Name</span><span className="text-right font-semibold">{userName || <span className="text-slate-400">Sign in to autofill</span>}</span></div>
+              <div className="flex justify-between gap-4 items-center"><span>Mobile</span><input value={userPhone} onChange={e => setUserPhone(e.target.value)} placeholder="Enter mobile number" className="text-right font-semibold bg-transparent outline-none w-40 placeholder:text-slate-400 placeholder:font-normal" maxLength={10} /></div>
+              <div className="border-t border-black/5 dark:border-white/5 pt-3" />
+              <div className="flex justify-between gap-4"><span>Branch</span><span className="text-right font-semibold">{selectedBranch.name}</span></div>
+              <div className="flex justify-between gap-4"><span>Address</span><span className="text-right font-semibold">{selectedBranch.landmark}</span></div>
+              <div className="flex justify-between"><span>Seat</span><span className="font-semibold">{selected ?? "Choose seat"}</span></div>
+              <div className="flex justify-between"><span>Hours</span><span className="font-semibold">{selectedBranch.hours}</span></div>
+              <div className="flex justify-between"><span>Plan</span><span className="font-semibold">Monthly Pass</span></div>
+              <div className="flex justify-between"><span>Amount</span><span className="font-semibold">Rs {monthlyAmount}</span></div>
+              <div className="flex justify-between"><span>Start date</span><span className="font-semibold">{formatDate(startDate)}</span></div>
+              <div className="flex justify-between"><span>End date</span><span className="font-semibold">{formatDate(endDate)}</span></div>
+            </div>
           <Button disabled={!selected || saveState === "saving"} variant="premium" className="mt-6 w-full" onClick={confirmBooking}>
             <CheckCircle2 className="h-4 w-4" />
-            {saveState === "saving" ? "Securing seat..." : "{saveState === "saving" ? "Securing seat..." : saveState === "saved" ? "Booked ✓" : "Confirm booking & generate QR"}"}
+            {saveState === "saving" ? "Securing seat..." : saveState === "saved" ? "Booked ✓" : "Confirm booking & generate QR"}
           </Button>
           {selected && saveState === "idle" ? <p className="mt-3 text-sm font-medium text-lagoon">Seat {selected} is held for this checkout.</p> : null}
           {saveState === "saved" ? <p className="mt-3 text-sm font-medium text-lagoon">Seat secured. Payment QR and dashboard booking are ready.</p> : null}
