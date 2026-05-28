@@ -32,6 +32,7 @@ const createBookingSchema = z.object({
   })
 });
 
+// ─── Availability ─────────────────────────────────────────────────────────────
 bookingRouter.get(
   "/availability",
   validate(availabilitySchema),
@@ -41,6 +42,7 @@ bookingRouter.get(
 
       const seats = await prisma.seat.findMany({
         where: { branchId },
+        orderBy: { label: "asc" },
         include: {
           bookings: {
             where: {
@@ -52,12 +54,18 @@ bookingRouter.get(
         }
       });
 
+      // Sort numerically so seat 1,2,3...10,11 not 1,10,11,2
+      const sorted = (seats as AvailabilitySeat[]).sort(
+        (a, b) => Number(a.label) - Number(b.label)
+      );
+
       response.json(
-        (seats as AvailabilitySeat[]).map((seat) => ({
+        sorted.map((seat) => ({
           id: seat.id,
           label: seat.label,
+          seatNumber: Number(seat.label),
           status:
-            seat.status !== "AVAILABLE" || seat.bookings.length
+            seat.status !== "AVAILABLE" || seat.bookings.length > 0
               ? "BOOKED"
               : "AVAILABLE"
         }))
@@ -68,6 +76,7 @@ bookingRouter.get(
   }
 );
 
+// ─── Create booking with concurrency lock ────────────────────────────────────
 bookingRouter.post(
   "/",
   requireAuth,
@@ -75,7 +84,6 @@ bookingRouter.post(
   async (request, response, next) => {
     try {
       const input = response.locals.validated.body;
-
       const startAt = new Date(input.startAt);
       const endAt = new Date(input.endAt);
 
@@ -85,102 +93,89 @@ bookingRouter.post(
           .json({ message: "End time must be after start time" });
       }
 
-      const booking = await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
-        await transaction.$executeRaw`
-          SELECT pg_advisory_xact_lock(hashtext(${input.seatId}))
-        `;
+      const booking = await prisma.$transaction(
+        async (transaction: Prisma.TransactionClient) => {
+          // Advisory lock — prevents two users booking same seat simultaneously
+          await transaction.$executeRaw`
+            SELECT pg_advisory_xact_lock(hashtext(${input.seatId}))
+          `;
 
-        const seat = await transaction.seat.findFirst({
-          where: {
-            id: input.seatId,
-            branchId: input.branchId
-          },
-          select: {
-            id: true,
-            status: true
+          const seat = await transaction.seat.findFirst({
+            where: { id: input.seatId, branchId: input.branchId },
+            select: { id: true, status: true, label: true }
+          });
+
+          if (!seat || seat.status !== "AVAILABLE") {
+            throw new Error("Seat is not available for booking");
           }
-        });
 
-        if (!seat || seat.status !== "AVAILABLE") {
-          throw new Error("Seat is not available for booking");
-        }
+          const conflict = await transaction.booking.findFirst({
+            where: {
+              seatId: input.seatId,
+              status: { in: ["PENDING", "CONFIRMED", "CHECKED_IN"] },
+              startAt: { lt: endAt },
+              endAt: { gt: startAt }
+            },
+            select: { id: true }
+          });
 
-        const conflict = await transaction.booking.findFirst({
-          where: {
-            seatId: input.seatId,
-            status: {
-              in: ["PENDING", "CONFIRMED", "CHECKED_IN"]
+          if (conflict) {
+            throw new Error("Seat is no longer available");
+          }
+
+          return transaction.booking.create({
+            data: {
+              userId: request.user!.sub,
+              branchId: input.branchId,
+              seatId: input.seatId,
+              startAt,
+              endAt,
+              qrToken: crypto.randomBytes(24).toString("hex"),
+              status: "CONFIRMED"
             },
-            startAt: {
-              lt: endAt
-            },
-            endAt: {
-              gt: startAt
+            include: {
+              seat: { select: { label: true } },
+              branch: { select: { name: true } }
             }
-          },
-          select: {
-            id: true
-          }
-        });
-
-        if (conflict) {
-          throw new Error("Seat is no longer available");
+          });
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          timeout: 10000
         }
-
-        return transaction.booking.create({
-          data: {
-            userId: request.user!.sub,
-            branchId: input.branchId,
-            seatId: input.seatId,
-            startAt,
-            endAt,
-            qrToken: crypto.randomBytes(24).toString("hex"),
-            status: "CONFIRMED"
-          }
-        });
-      });
+      );
 
       response.status(201).json(booking);
     } catch (error) {
       if (
         error instanceof Error &&
-        [
-          "Seat is no longer available",
-          "Seat is not available for booking"
-        ].includes(error.message)
+        ["Seat is no longer available", "Seat is not available for booking"].includes(
+          error.message
+        )
       ) {
-        return response.status(409).json({
-          message: error.message
-        });
+        return response.status(409).json({ message: error.message });
       }
-
       next(error);
     }
   }
 );
 
+// ─── Check in ────────────────────────────────────────────────────────────────
 bookingRouter.post(
   "/:id/check-in",
   requireAuth,
   async (request, response, next) => {
     try {
       const booking = await prisma.booking.update({
-        where: {
-          id: String(request.params.id)
-        },
+        where: { id: String(request.params.id) },
         data: {
           status: "CHECKED_IN",
           attendances: {
-            create: {
-              userId: request.user!.sub
-            }
+            create: { userId: request.user!.sub }
           }
         },
-        include: {
-          attendances: true
-        }
+        include: { attendances: true }
       });
-
       response.json(booking);
     } catch (error) {
       next(error);
