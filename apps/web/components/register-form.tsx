@@ -175,7 +175,7 @@ export function RegisterForm() {
           label="Phone"
           value={values.phone}
           error={fieldErrors.phone}
-          placeholder="+91 8555227719"
+          placeholder="+91 8555827719"
           onChange={(value) => updateField("phone", value)}
         />
         <AuthInput
