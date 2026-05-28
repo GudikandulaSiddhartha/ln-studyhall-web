@@ -207,7 +207,7 @@ export function BookingBoard() {
           </div>
           <Button disabled={!selected || saveState === "saving"} variant="premium" className="mt-6 w-full" onClick={confirmBooking}>
             <CheckCircle2 className="h-4 w-4" />
-            {saveState === "saving" ? "Securing seat..." : "Generate QR and save"}
+            {saveState === "saving" ? "Securing seat..." : "{saveState === "saving" ? "Securing seat..." : saveState === "saved" ? "Booked ✓" : "Confirm booking & generate QR"}"}
           </Button>
           {selected && saveState === "idle" ? <p className="mt-3 text-sm font-medium text-lagoon">Seat {selected} is held for this checkout.</p> : null}
           {saveState === "saved" ? <p className="mt-3 text-sm font-medium text-lagoon">Seat secured. Payment QR and dashboard booking are ready.</p> : null}
@@ -215,10 +215,10 @@ export function BookingBoard() {
         <Card>
           <div className="mb-5 flex items-center gap-3">
             <QrCode className="h-5 w-5 text-neon" />
-            <h3 className="text-xl font-semibold">Payment QR</h3>
+            <h3 className="text-xl font-semibold">{saveState === "saved" ? "Booking QR — show at entry" : "Payment QR"}</h3>
           </div>
           <motion.div animate={{ scale: selected ? 1 : 0.94, opacity: selected ? 1 : 0.5 }} className="grid place-items-center rounded-lg bg-white p-5">
-            <QRCodeSVG value={paymentQrValue} size={180} />
+            <QRCodeSVG value={paymentQrValue} size={180} level="H" includeMargin={true} />
           </motion.div>
           <p className="mt-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
             <CreditCard className="h-4 w-4 text-lagoon" />
