@@ -38,12 +38,13 @@ function LiveClock() {
 }
 
 async function exportToExcel(token: string) {
-  const XLSX = await import("xlsx");
   const res = await fetch(`${API_URL}/admin/bookings?limit=1000`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   const data = await res.json();
   const bookings = data.bookings ?? [];
+
+  const headers = ["Name", "Mobile Number", "Branch", "Seat Number", "Status", "Start Date", "End Date", "Booked On"];
 
   const rows = bookings.map((b: {
     user: { name: string; phone: string | null };
@@ -53,26 +54,28 @@ async function exportToExcel(token: string) {
     startAt: string;
     endAt: string;
     createdAt: string;
-  }) => ({
-    "Name": b.user.name,
-    "Mobile Number": b.user.phone ?? "—",
-    "Branch": b.branch.name,
-    "Seat Number": b.seat.label,
-    "Status": b.status,
-    "Start Date": new Date(b.startAt).toLocaleDateString("en-IN"),
-    "End Date": new Date(b.endAt).toLocaleDateString("en-IN"),
-    "Booked On": new Date(b.createdAt).toLocaleDateString("en-IN")
-  }));
+  }) => [
+    b.user.name,
+    b.user.phone ?? "",
+    b.branch.name,
+    b.seat.label,
+    b.status,
+    new Date(b.startAt).toLocaleDateString("en-IN"),
+    new Date(b.endAt).toLocaleDateString("en-IN"),
+    new Date(b.createdAt).toLocaleDateString("en-IN")
+  ]);
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Bookings");
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((cell: string) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
 
-  // Auto column widths
-  const cols = Object.keys(rows[0] ?? {}).map((k) => ({ wch: Math.max(k.length, 16) }));
-  ws["!cols"] = cols;
-
-  XLSX.writeFile(wb, `ln-studyhall-bookings-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `ln-studyhall-bookings-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function AdminPage() {
