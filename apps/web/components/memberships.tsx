@@ -33,31 +33,51 @@ export function Memberships() {
           const features = Array.isArray(plan.features) ? plan.features : [];
           return (
             <motion.div key={plan.name} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.06 }}>
-              <Card className={plan.featured ? "relative h-full border-lagoon/60 bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "h-full"}>
-                {plan.featured ? <span className="absolute right-4 top-4 rounded-full bg-lagoon px-3 py-1 text-xs font-semibold text-slate-900">Popular</span> : null}
-                <h3 className="text-xl font-semibold">{plan.name}</h3>
-                <p className={plan.featured ? "mt-3 text-sm text-slate-300 dark:text-slate-600" : "mt-3 text-sm text-slate-600 dark:text-slate-300"}>{plan.description}</p>
-                <div className="mt-6 flex items-end gap-1">
-                  <span className="text-4xl font-semibold">₹{plan.price}</span>
-                  <span className={plan.featured ? "pb-1 text-sm text-slate-400 dark:text-slate-500" : "pb-1 text-sm text-slate-500"}>/ plan</span>
+              {plan.featured ? (
+                /* Featured card — plain div to prevent glass override */
+                <div className="relative h-full rounded-lg border border-lagoon/60 p-6" style={{ background: "#0f172a", color: "#ffffff" }}>
+                  <span className="absolute right-4 top-4 rounded-full bg-lagoon px-3 py-1 text-xs font-semibold" style={{ color: "#0f172a" }}>Popular</span>
+                  <h3 className="text-xl font-semibold" style={{ color: "#ffffff" }}>{plan.name}</h3>
+                  <p className="mt-3 text-sm" style={{ color: "#94a3b8" }}>{plan.description}</p>
+                  <div className="mt-6 flex items-end gap-1">
+                    <span className="text-4xl font-semibold" style={{ color: "#ffffff" }}>₹{plan.price}</span>
+                    <span className="pb-1 text-sm" style={{ color: "#64748b" }}>/ plan</span>
+                  </div>
+                  <ul className="mt-6 space-y-3">
+                    {features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-2 text-sm" style={{ color: "#ffffff" }}>
+                        <Check className="h-4 w-4 text-lagoon" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button variant="premium" className="mt-7 w-full" onClick={() => router.push("/booking")}>
+                    <CreditCard className="h-4 w-4" />
+                    Book a seat
+                  </Button>
                 </div>
-                <ul className="mt-6 space-y-3">
-                  {features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm">
-                      <Check className="h-4 w-4 text-lagoon" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  variant={plan.featured ? "premium" : "outline"}
-                  className="mt-7 w-full"
-                  onClick={() => router.push("/booking")}
-                >
-                  <CreditCard className="h-4 w-4" />
-                  Book a seat
-                </Button>
-              </Card>
+              ) : (
+                <Card className="h-full">
+                  <h3 className="text-xl font-semibold">{plan.name}</h3>
+                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{plan.description}</p>
+                  <div className="mt-6 flex items-end gap-1">
+                    <span className="text-4xl font-semibold">₹{plan.price}</span>
+                    <span className="pb-1 text-sm text-slate-500">/ plan</span>
+                  </div>
+                  <ul className="mt-6 space-y-3">
+                    {features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-2 text-sm">
+                        <Check className="h-4 w-4 text-lagoon" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button variant="outline" className="mt-7 w-full" onClick={() => router.push("/booking")}>
+                    <CreditCard className="h-4 w-4" />
+                    Book a seat
+                  </Button>
+                </Card>
+              )}
             </motion.div>
           );
         })}
