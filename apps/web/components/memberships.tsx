@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Check, CreditCard } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { memberships } from "@/lib/data";
 import { Section } from "@/components/section";
 import { Card } from "@/components/ui/card";
@@ -18,6 +19,7 @@ const fallbackMemberships = [
 ];
 
 export function Memberships() {
+  const router = useRouter();
   const visibleMemberships = Array.isArray(memberships) && memberships.length > 0 ? memberships : fallbackMemberships;
 
   return (
@@ -29,31 +31,34 @@ export function Memberships() {
       <div id="memberships" className="grid max-w-md gap-5">
         {visibleMemberships.map((plan, index) => {
           const features = Array.isArray(plan.features) ? plan.features : [];
-
           return (
-          <motion.div key={plan.name} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.06 }}>
-            <Card className={plan.featured ? "relative h-full border-lagoon/60 bg-ink text-white dark:bg-white dark:text-ink" : "h-full"}>
-              {plan.featured ? <span className="absolute right-4 top-4 rounded-full bg-lagoon px-3 py-1 text-xs font-semibold text-ink">Popular</span> : null}
-              <h3 className="text-xl font-semibold">{plan.name}</h3>
-              <p className={plan.featured ? "mt-3 text-sm text-white/75 dark:text-ink/70" : "mt-3 text-sm text-slate-600 dark:text-slate-300"}>{plan.description}</p>
-              <div className="mt-6 flex items-end gap-1">
-                <span className="text-4xl font-semibold">₹{plan.price}</span>
-                <span className={plan.featured ? "pb-1 text-sm text-white/70 dark:text-ink/65" : "pb-1 text-sm text-slate-500"}>/ plan</span>
-              </div>
-              <ul className="mt-6 space-y-3">
-                {features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-sm">
-                    <Check className="h-4 w-4 text-lagoon" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button variant={plan.featured ? "premium" : "outline"} className="mt-7 w-full">
-                <CreditCard className="h-4 w-4" />
-                Pay online
-              </Button>
-            </Card>
-          </motion.div>
+            <motion.div key={plan.name} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.06 }}>
+              <Card className={plan.featured ? "relative h-full border-lagoon/60 bg-ink text-white dark:bg-white dark:text-ink" : "h-full"}>
+                {plan.featured ? <span className="absolute right-4 top-4 rounded-full bg-lagoon px-3 py-1 text-xs font-semibold text-ink">Popular</span> : null}
+                <h3 className="text-xl font-semibold">{plan.name}</h3>
+                <p className={plan.featured ? "mt-3 text-sm text-white/75 dark:text-ink/70" : "mt-3 text-sm text-slate-600 dark:text-slate-300"}>{plan.description}</p>
+                <div className="mt-6 flex items-end gap-1">
+                  <span className="text-4xl font-semibold">₹{plan.price}</span>
+                  <span className={plan.featured ? "pb-1 text-sm text-white/70 dark:text-ink/65" : "pb-1 text-sm text-slate-500"}>/ plan</span>
+                </div>
+                <ul className="mt-6 space-y-3">
+                  {features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2 text-sm">
+                      <Check className="h-4 w-4 text-lagoon" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  variant={plan.featured ? "premium" : "outline"}
+                  className="mt-7 w-full"
+                  onClick={() => router.push("/booking")}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Book a seat
+                </Button>
+              </Card>
+            </motion.div>
           );
         })}
       </div>
