@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Bell, Building2, ImagePlus, MessageSquareText, UserCog, LogOut, Download } from "lucide-react";
 import { getStoredAuth, clearAuth, API_URL } from "@/lib/api";
-import * as XLSX from "xlsx";
+
 
 const actions = [
   { label: "Manage branches", icon: Building2, href: "/admin/branches" },
@@ -38,6 +38,7 @@ function LiveClock() {
 }
 
 async function exportToExcel(token: string) {
+  const XLSX = await import("xlsx");
   const res = await fetch(`${API_URL}/admin/bookings?limit=1000`, {
     headers: { Authorization: `Bearer ${token}` }
   });
