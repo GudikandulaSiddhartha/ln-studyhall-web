@@ -128,27 +128,10 @@ export async function loginWithInviteCode(inviteCode: string) {
   return createAuthResponse(user);
 }
 
-// ─── Email sender (SES or console fallback) ───────────────────────────────────
+// ─── Email sender (console fallback — replace with SES/Resend/Nodemailer later) ──
 async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
-  const SES_FROM = process.env.SES_FROM_EMAIL;
-  const AWS_REGION = process.env.AWS_REGION ?? "ap-southeast-1";
-
-  if (!SES_FROM) {
-    console.log(`[EMAIL] To: ${to}\nSubject: ${subject}\n${html.replace(/<[^>]+>/g, "")}`);
-    return;
-  }
-
-  // Dynamic AWS SES import — only if configured
-  const { SESClient, SendEmailCommand } = await import("@aws-sdk/client-ses");
-  const ses = new SESClient({ region: AWS_REGION });
-  await ses.send(new SendEmailCommand({
-    Source: SES_FROM,
-    Destination: { ToAddresses: [to] },
-    Message: {
-      Subject: { Data: subject },
-      Body: { Html: { Data: html } }
-    }
-  }));
+  // Log OTP to console for now — visible in Render logs
+  console.log(`\n[EMAIL] To: ${to}\nSubject: ${subject}\n${html.replace(/<[^>]+>/g, "").trim()}\n`);
 }
 
 // ─── JWT helper ───────────────────────────────────────────────────────────────
