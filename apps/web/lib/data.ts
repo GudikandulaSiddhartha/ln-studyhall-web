@@ -14,10 +14,10 @@ import {
 } from "lucide-react";
 
 export const contactDetails = {
-  phone: "8555227719",
-  phoneHref: "tel:+918555227719",
-  whatsapp: "8555227719",
-  whatsappHref: "https://wa.me/918555227719",
+  phone: "8555827719",
+  phoneHref: "tel:+918555827719",
+  whatsapp: "8555827719",
+  whatsappHref: "https://wa.me/918555827719",
   email: "gudikadulabunny345@gmail.com",
   emailHref: "mailto:gudikadulabunny345@gmail.com"
 };
