@@ -33,13 +33,13 @@ export function Memberships() {
           const features = Array.isArray(plan.features) ? plan.features : [];
           return (
             <motion.div key={plan.name} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.06 }}>
-              <Card className={plan.featured ? "relative h-full border-lagoon/60 bg-ink text-white dark:bg-white dark:text-ink" : "h-full"}>
-                {plan.featured ? <span className="absolute right-4 top-4 rounded-full bg-lagoon px-3 py-1 text-xs font-semibold text-ink">Popular</span> : null}
+              <Card className={plan.featured ? "relative h-full border-lagoon/60 bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "h-full"}>
+                {plan.featured ? <span className="absolute right-4 top-4 rounded-full bg-lagoon px-3 py-1 text-xs font-semibold text-slate-900">Popular</span> : null}
                 <h3 className="text-xl font-semibold">{plan.name}</h3>
-                <p className={plan.featured ? "mt-3 text-sm text-white/75 dark:text-ink/70" : "mt-3 text-sm text-slate-600 dark:text-slate-300"}>{plan.description}</p>
+                <p className={plan.featured ? "mt-3 text-sm text-slate-300 dark:text-slate-600" : "mt-3 text-sm text-slate-600 dark:text-slate-300"}>{plan.description}</p>
                 <div className="mt-6 flex items-end gap-1">
                   <span className="text-4xl font-semibold">₹{plan.price}</span>
-                  <span className={plan.featured ? "pb-1 text-sm text-white/70 dark:text-ink/65" : "pb-1 text-sm text-slate-500"}>/ plan</span>
+                  <span className={plan.featured ? "pb-1 text-sm text-slate-400 dark:text-slate-500" : "pb-1 text-sm text-slate-500"}>/ plan</span>
                 </div>
                 <ul className="mt-6 space-y-3">
                   {features.map((feature) => (
