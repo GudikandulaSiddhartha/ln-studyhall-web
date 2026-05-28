@@ -62,18 +62,7 @@ export async function registerUser(input: {
   email: string;
   password: string;
   phone?: string;
-  otpToken: string;
 }) {
-  // Verify OTP token
-  try {
-    const payload = jwt.verify(input.otpToken, env.JWT_SECRET) as { emailVerified?: string };
-    if (payload.emailVerified !== input.email.toLowerCase()) {
-      throw new Error("Email verification mismatch.");
-    }
-  } catch {
-    throw new Error("Invalid or expired email verification. Please verify your email again.");
-  }
-
   const passwordHash = await bcrypt.hash(input.password, 12);
   const user = await prisma.user.create({
     data: {
