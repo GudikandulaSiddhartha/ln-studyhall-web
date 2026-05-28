@@ -127,7 +127,7 @@ export async function checkApiHealth(): Promise<boolean> {
 // ─── Auth API ─────────────────────────────────────────────────────────────────
 
 export const auth = {
-  register: (body: { name: string; email: string; phone?: string; password: string }) =>
+  register: (body: { name: string; email: string; phone?: string; password: string; otpToken: string }) =>
     request<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(body) }),
 
   registerAdmin: (body: {
