@@ -173,7 +173,7 @@ adminRouter.get("/bookings", async (request, response, next) => {
         take: limit,
         orderBy: { createdAt: "desc" },
         include: {
-          user: { select: { name: true, email: true, phone: true } },
+          user: { select: { id: true, name: true, email: true, phone: true } },
           seat: { select: { label: true } },
           branch: { select: { name: true } }
         }
