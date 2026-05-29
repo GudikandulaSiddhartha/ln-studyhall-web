@@ -84,7 +84,7 @@ export function Navbar() {
           ) : (
             <>
               <Button asChild variant="outline" className="hidden sm:inline-flex">
-                <Link href="/admin"><LayoutDashboard className="h-4 w-4" />Admin</Link>
+                <Link href="/admin-login"><LayoutDashboard className="h-4 w-4" />Admin</Link>
               </Button>
               <Button asChild variant="premium">
                 <Link href="/branches"><MapPinned className="h-4 w-4" /><span className="hidden sm:inline">Branches</span></Link>
@@ -139,7 +139,7 @@ export function Navbar() {
             ) : (
               <div className="flex flex-col gap-2 pt-2">
                 <Button asChild variant="outline" className="w-full">
-                  <Link href="/admin" onClick={() => setMenuOpen(false)}><LayoutDashboard className="h-4 w-4" />Admin</Link>
+                  <Link href="/admin-login" onClick={() => setMenuOpen(false)}><LayoutDashboard className="h-4 w-4" />Admin</Link>
                 </Button>
                 <Button asChild variant="premium" className="w-full">
                   <Link href="/branches" onClick={() => setMenuOpen(false)}><MapPinned className="h-4 w-4" />Branches</Link>
