@@ -37,43 +37,102 @@ function LiveClock() {
   );
 }
 
-async function exportToExcel(token: string) {
-  const res = await fetch(`${API_URL}/admin/bookings?limit=1000`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  const data = await res.json();
-  const bookings = data.bookings ?? [];
+async function exportToCSV(token: string) {
+  const [usersRes, bookingsRes] = await Promise.all([
+    fetch(`${API_URL}/admin/users?limit=1000`, { headers: { Authorization: `Bearer ${token}` } }),
+    fetch(`${API_URL}/admin/bookings?limit=1000`, { headers: { Authorization: `Bearer ${token}` } })
+  ]);
 
-  const headers = ["Name", "Mobile Number", "Branch", "Seat Number", "Status", "Start Date", "End Date", "Booked On"];
+  const usersData = await usersRes.json();
+  const bookingsData = await bookingsRes.json();
 
-  const rows = bookings.map((b: {
-    user: { name: string; phone: string | null };
+  const users: {
+    id: string; name: string; email: string; phone: string | null;
+    role: string; joinedAt: string; totalBookings: number;
+    lastBooking: { startAt: string; endAt: string; status: string } | null;
+  }[] = usersData.users ?? [];
+
+  const bookings: {
+    userId?: string;
+    user: { name: string; phone: string | null; email?: string };
     branch: { name: string };
     seat: { label: string };
-    status: string;
-    startAt: string;
-    endAt: string;
-    createdAt: string;
-  }) => [
+    status: string; startAt: string; endAt: string; createdAt: string;
+  }[] = bookingsData.bookings ?? [];
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Build a map of userId → latest booking
+  const bookingMap = new Map<string, typeof bookings[0]>();
+  for (const b of bookings) {
+    if (b.userId && !bookingMap.has(b.userId)) {
+      bookingMap.set(b.userId, b);
+    }
+  }
+
+  // Payment status helper
+  const paymentStatus = (status: string) => {
+    if (["CONFIRMED", "CHECKED_IN", "COMPLETED"].includes(status)) return "Paid";
+    if (status === "CANCELLED") return "Cancelled";
+    return "Unpaid";
+  };
+
+  // ── Users sheet: one row per user with seat + payment ─────────────────────
+  const userHeaders = [
+    "Name", "Email", "Mobile Number", "Role", "Joined Date",
+    "Seat Booked", "Seat Number", "Branch", "Start Date", "End Date", "Payment Status"
+  ];
+
+  const userRows = users.map((u) => {
+    const booking = bookingMap.get(u.id);
+    return [
+      u.name,
+      u.email,
+      u.phone ?? "",
+      u.role,
+      new Date(u.joinedAt).toLocaleDateString("en-IN"),
+      booking ? "Yes" : "No",
+      booking ? booking.seat.label : "",
+      booking ? booking.branch.name : "",
+      booking ? new Date(booking.startAt).toLocaleDateString("en-IN") : "",
+      booking ? new Date(booking.endAt).toLocaleDateString("en-IN") : "",
+      booking ? paymentStatus(booking.status) : "Unpaid"
+    ];
+  });
+
+  // ── Bookings sheet ────────────────────────────────────────────────────────
+  const bookingHeaders = [
+    "Name", "Mobile Number", "Branch", "Seat Number",
+    "Start Date", "End Date", "Payment Status", "Booked On"
+  ];
+
+  const bookingRows = bookings.map((b) => [
     b.user.name,
     b.user.phone ?? "",
     b.branch.name,
     b.seat.label,
-    b.status,
     new Date(b.startAt).toLocaleDateString("en-IN"),
     new Date(b.endAt).toLocaleDateString("en-IN"),
+    paymentStatus(b.status),
     new Date(b.createdAt).toLocaleDateString("en-IN")
   ]);
 
-  const csvContent = [headers, ...rows]
-    .map((row) => row.map((cell: string) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
+  const toCSV = (headers: string[], rows: string[][]) =>
+    [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+  const csvContent =
+    "USERS\n" +
+    toCSV(userHeaders, userRows.length > 0 ? userRows : [Array(userHeaders.length).fill("No data")]) +
+    "\n\nBOOKINGS\n" +
+    toCSV(bookingHeaders, bookingRows.length > 0 ? bookingRows : [Array(bookingHeaders.length).fill("No data")]);
 
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `ln-studyhall-bookings-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `ln-studyhall-export-${today}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -112,7 +171,7 @@ export default function AdminPage() {
           <div className="flex flex-col items-end gap-4">
             <LiveClock />
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => exportToExcel(admin.token)}>
+              <Button variant="outline" onClick={() => exportToCSV(admin.token)}>
                 <Download className="h-4 w-4" />
                 Export Excel
               </Button>
