@@ -144,7 +144,7 @@ export default function AdminPage() {
   useEffect(() => {
     const stored = getStoredAuth();
     if (!stored || (stored.user.role !== "ADMIN" && stored.user.role !== "SUPER_ADMIN")) {
-      router.push("/signin");
+      router.push("/admin-login");
       return;
     }
     setAdmin({ name: stored.user.name, token: stored.token });
