@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnalyticsDashboard } from "@/components/analytics-dashboard";
+import { SeatManager } from "@/components/seat-manager";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -196,6 +197,16 @@ export default function AdminPage() {
         </div>
 
         <AnalyticsDashboard />
+
+        {/* Seat Management */}
+        <div className="mt-8">
+          <div className="mb-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-lagoon">Seat Management</p>
+            <h2 className="mt-1 text-2xl font-semibold">Release & block seats</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Click any seat to view details and control its availability.</p>
+          </div>
+          <SeatManager />
+        </div>
       </div>
     </main>
   );
