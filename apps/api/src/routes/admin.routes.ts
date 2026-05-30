@@ -204,3 +204,202 @@ adminRouter.get("/activity", async (_request, response, next) => {
     next(error);
   }
 });
+
+// ─── Seat management ──────────────────────────────────────────────────────────
+
+// Get all seats across all branches
+adminRouter.get("/seats", async (_request, response, next) => {
+  try {
+    const seats = await prisma.seat.findMany({
+      orderBy: [{ branchId: "asc" }, { label: "asc" }],
+      include: {
+        branch: { select: { name: true } },
+        bookings: {
+          where: { status: { in: ["CONFIRMED", "CHECKED_IN"] } },
+          take: 1,
+          orderBy: { createdAt: "desc" },
+          include: { user: { select: { name: true, phone: true } } }
+        }
+      }
+    });
+
+    // Sort numerically by label
+    const sorted = seats.sort((a, b) => Number(a.label) - Number(b.label));
+
+    response.json(sorted.map((s) => ({
+      id: s.id,
+      label: s.label,
+      status: s.status,
+      branchId: s.branchId,
+      branchName: s.branch.name,
+      activeBooking: s.bookings[0] ?? null
+    })));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Release a seat (BLOCKED/MAINTENANCE → AVAILABLE)
+adminRouter.patch("/seats/:id/release", async (request, response, next) => {
+  try {
+    const seat = await prisma.seat.update({
+      where: { id: request.params.id },
+      data: { status: "AVAILABLE" }
+    });
+    response.json({ message: `Seat ${seat.label} released`, seat });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Block a seat (AVAILABLE → BLOCKED)
+adminRouter.patch("/seats/:id/block", async (request, response, next) => {
+  try {
+    const seat = await prisma.seat.update({
+      where: { id: request.params.id },
+      data: { status: "BLOCKED" }
+    });
+    response.json({ message: `Seat ${seat.label} blocked`, seat });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Set seat to maintenance
+adminRouter.patch("/seats/:id/maintenance", async (request, response, next) => {
+  try {
+    const seat = await prisma.seat.update({
+      where: { id: request.params.id },
+      data: { status: "MAINTENANCE" }
+    });
+    response.json({ message: `Seat ${seat.label} set to maintenance`, seat });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Booking management ───────────────────────────────────────────────────────
+
+// Cancel a booking (admin force cancel)
+adminRouter.patch("/bookings/:id/cancel", async (request, response, next) => {
+  try {
+    const booking = await prisma.booking.update({
+      where: { id: request.params.id },
+      data: { status: "CANCELLED" },
+      include: {
+        user: { select: { name: true } },
+        seat: { select: { label: true } }
+      }
+    });
+    response.json({ message: `Booking for ${booking.user.name} (Seat ${booking.seat.label}) cancelled`, booking });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Confirm a pending booking
+adminRouter.patch("/bookings/:id/confirm", async (request, response, next) => {
+  try {
+    const booking = await prisma.booking.update({
+      where: { id: request.params.id },
+      data: { status: "CONFIRMED" },
+      include: {
+        user: { select: { name: true } },
+        seat: { select: { label: true } }
+      }
+    });
+    response.json({ message: `Booking confirmed for ${booking.user.name}`, booking });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Seat management ──────────────────────────────────────────────────────────
+
+// Get all seats with status grouped by branch
+adminRouter.get("/seats", async (_request, response, next) => {
+  try {
+    const seats = await prisma.seat.findMany({
+      orderBy: [{ branchId: "asc" }, { label: "asc" }],
+      include: {
+        branch: { select: { name: true } },
+        bookings: {
+          where: { status: { in: ["CONFIRMED", "CHECKED_IN"] } },
+          take: 1,
+          select: {
+            status: true,
+            startAt: true,
+            endAt: true,
+            user: { select: { name: true, phone: true } }
+          }
+        }
+      }
+    });
+
+    const sorted = seats.sort((a, b) => Number(a.label) - Number(b.label));
+    response.json(sorted);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Release a seat (set to AVAILABLE)
+adminRouter.patch("/seats/:id/release", async (request, response, next) => {
+  try {
+    const seat = await prisma.seat.update({
+      where: { id: String(request.params.id) },
+      data: { status: "AVAILABLE" }
+    });
+    response.json({ message: "Seat released", seat });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Block a seat (set to BLOCKED)
+adminRouter.patch("/seats/:id/block", async (request, response, next) => {
+  try {
+    // Cancel any active bookings on this seat
+    await prisma.booking.updateMany({
+      where: {
+        seatId: String(request.params.id),
+        status: { in: ["PENDING", "CONFIRMED"] }
+      },
+      data: { status: "CANCELLED" }
+    });
+
+    const seat = await prisma.seat.update({
+      where: { id: String(request.params.id) },
+      data: { status: "BLOCKED" }
+    });
+    response.json({ message: "Seat blocked", seat });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Cancel a specific booking
+adminRouter.patch("/bookings/:id/cancel", async (request, response, next) => {
+  try {
+    const booking = await prisma.booking.update({
+      where: { id: String(request.params.id) },
+      data: { status: "CANCELLED" }
+    });
+    response.json({ message: "Booking cancelled", booking });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Confirm a pending booking
+adminRouter.patch("/bookings/:id/confirm", async (request, response, next) => {
+  try {
+    const booking = await prisma.booking.update({
+      where: { id: String(request.params.id) },
+      data: { status: "CONFIRMED" }
+    });
+    response.json({ message: "Booking confirmed", booking });
+  } catch (error) {
+    next(error);
+  }
+});
