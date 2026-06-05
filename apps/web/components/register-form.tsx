@@ -31,12 +31,22 @@ export function RegisterForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // ── User submit ──────────────────────────────────────────────────────────────
+  function isValidEmail(email: string): boolean {
+    const re = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!re.test(email)) return false;
+    if (email.includes("..")) return false;
+    const fakeDomains = ["test.com","fake.com","example.com","temp.com","abc.com","xyz.com"];
+    const domain = email.split("@")[1]?.toLowerCase() ?? "";
+    if (fakeDomains.includes(domain)) return false;
+    return true;
+  }
+
   async function onUserSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     const errors: Record<string, string> = {};
     if (name.trim().length < 2) errors.name = "Enter your full name.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email.";
+    if (!isValidEmail(email)) errors.email = "Enter a valid email (e.g. name@gmail.com).";
     if (password.length < 8) errors.password = "Minimum 8 characters.";
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
