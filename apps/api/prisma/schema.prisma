@@ -206,3 +206,14 @@ model Attendance {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 }
+
+// OTP tokens stored in DB so they survive server restarts / cold starts
+model OtpToken {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
