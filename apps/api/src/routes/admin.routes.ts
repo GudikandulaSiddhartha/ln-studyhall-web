@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAdmin, requireAuth } from "../middleware/auth.js";
+import { adminLimiter } from "../middleware/security.js";
 
 export const adminRouter = Router();
-adminRouter.use(requireAuth, requireAdmin);
+adminRouter.use(requireAuth, requireAdmin, adminLimiter);
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
 adminRouter.get("/analytics", async (_req, res, next) => {
@@ -13,23 +14,28 @@ adminRouter.get("/analytics", async (_req, res, next) => {
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
-    const [totalUsers, totalBookings, totalBranches, allTimeRevenue, monthlyRevenue,
-      lastMonthRevenue, activeBookings, monthlySignups] = await Promise.all([
+    const SEAT_PRICE = 1500; // ₹ per confirmed booking
+
+    const [totalUsers, totalBookings, totalBranches,
+      allTimeConfirmed, monthlyConfirmed, lastMonthConfirmed,
+      activeBookings, monthlySignups] = await Promise.all([
       prisma.user.count(),
       prisma.booking.count(),
       prisma.branch.count(),
-      prisma.payment.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }),
-      prisma.payment.aggregate({ where: { status: "PAID", createdAt: { gte: startOfMonth } }, _sum: { amount: true } }),
-      prisma.payment.aggregate({ where: { status: "PAID", createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } }, _sum: { amount: true } }),
+      // Revenue = confirmed bookings × seat price (no Payment table dependency)
+      prisma.booking.count({ where: { status: { in: ["CONFIRMED", "CHECKED_IN", "COMPLETED"] } } }),
+      prisma.booking.count({ where: { status: { in: ["CONFIRMED", "CHECKED_IN", "COMPLETED"] }, createdAt: { gte: startOfMonth } } }),
+      prisma.booking.count({ where: { status: { in: ["CONFIRMED", "CHECKED_IN", "COMPLETED"] }, createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } } }),
       prisma.booking.count({ where: { status: { in: ["CONFIRMED", "CHECKED_IN"] } } }),
       prisma.user.count({ where: { createdAt: { gte: startOfMonth } } })
     ]);
 
-    const cur = monthlyRevenue._sum.amount ?? 0;
-    const last = lastMonthRevenue._sum.amount ?? 1;
+    const cur = monthlyConfirmed * SEAT_PRICE;
+    const last = (lastMonthConfirmed || 1) * SEAT_PRICE;
+
     res.json({
       totalUsers, totalBookings, totalBranches,
-      allTimeRevenue: allTimeRevenue._sum.amount ?? 0,
+      allTimeRevenue: allTimeConfirmed * SEAT_PRICE,
       monthlyRevenue: cur,
       revenueGrowth: Math.round(((cur - last) / last) * 100),
       activeBookings, monthlySignups
@@ -40,17 +46,22 @@ adminRouter.get("/analytics", async (_req, res, next) => {
 // ─── Monthly revenue chart ─────────────────────────────────────────────────────
 adminRouter.get("/revenue/monthly", async (_req, res, next) => {
   try {
+    const SEAT_PRICE = 1500;
     const months = Array.from({ length: 6 }, (_, i) => {
       const d = new Date(); d.setMonth(d.getMonth() - (5 - i));
       return new Date(d.getFullYear(), d.getMonth(), 1);
     });
     const data = await Promise.all(months.map(async (start) => {
       const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-      const [rev, bookings] = await Promise.all([
-        prisma.payment.aggregate({ where: { status: "PAID", createdAt: { gte: start, lte: end } }, _sum: { amount: true } }),
+      const [confirmed, bookings] = await Promise.all([
+        prisma.booking.count({ where: { status: { in: ["CONFIRMED", "CHECKED_IN", "COMPLETED"] }, createdAt: { gte: start, lte: end } } }),
         prisma.booking.count({ where: { createdAt: { gte: start, lte: end } } })
       ]);
-      return { month: start.toLocaleString("default", { month: "short" }), revenue: rev._sum.amount ?? 0, bookings };
+      return {
+        month: start.toLocaleString("default", { month: "short" }),
+        revenue: confirmed * SEAT_PRICE,
+        bookings
+      };
     }));
     res.json(data);
   } catch (e) { next(e); }
