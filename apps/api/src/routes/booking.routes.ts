@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
+import { bookingLimiter } from "../middleware/security.js";
 
 export const bookingRouter = Router();
 
@@ -80,6 +81,7 @@ bookingRouter.get(
 bookingRouter.post(
   "/",
   requireAuth,
+  bookingLimiter,
   validate(createBookingSchema),
   async (request, response, next) => {
     try {
@@ -99,6 +101,18 @@ bookingRouter.post(
           await transaction.$executeRaw`
             SELECT pg_advisory_xact_lock(hashtext(${input.seatId}))
           `;
+
+          // Prevent one user from holding multiple active seats
+          const existingUserBooking = await transaction.booking.findFirst({
+            where: {
+              userId: request.user!.sub,
+              status: { in: ["PENDING", "CONFIRMED", "CHECKED_IN"] }
+            },
+            select: { id: true }
+          });
+          if (existingUserBooking) {
+            throw new Error("You already have an active booking. Cancel it before booking a new seat.");
+          }
 
           const seat = await transaction.seat.findFirst({
             where: { id: input.seatId, branchId: input.branchId },
@@ -123,6 +137,7 @@ bookingRouter.post(
             throw new Error("Seat is no longer available");
           }
 
+          // Status starts as PENDING — admin confirms after verifying UPI payment.
           return transaction.booking.create({
             data: {
               userId: request.user!.sub,
@@ -131,7 +146,7 @@ bookingRouter.post(
               startAt,
               endAt,
               qrToken: crypto.randomBytes(24).toString("hex"),
-              status: "CONFIRMED"
+              status: "PENDING"
             },
             include: {
               seat: { select: { label: true } },
@@ -149,9 +164,11 @@ bookingRouter.post(
     } catch (error) {
       if (
         error instanceof Error &&
-        ["Seat is no longer available", "Seat is not available for booking"].includes(
-          error.message
-        )
+        [
+          "Seat is no longer available",
+          "Seat is not available for booking",
+          "You already have an active booking. Cancel it before booking a new seat."
+        ].includes(error.message)
       ) {
         return response.status(409).json({ message: error.message });
       }
