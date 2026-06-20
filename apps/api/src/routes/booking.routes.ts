@@ -155,7 +155,7 @@ bookingRouter.post(
           });
         },
         {
-          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          isolationLevel: "Serializable" as const,
           timeout: 10000
         }
       );
