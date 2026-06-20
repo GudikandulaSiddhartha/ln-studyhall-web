@@ -145,6 +145,7 @@ bookingRouter.post(
           if (conflict) throw new Error("Seat is no longer available");
 
           // PENDING — admin confirms after verifying UPI UTR number
+          // Guest name + phone are submitted via Google Form for admin verification
           return transaction.booking.create({
             data: {
               ...(userId ? { userId } : {}),
@@ -153,12 +154,7 @@ bookingRouter.post(
               startAt,
               endAt,
               qrToken: crypto.randomBytes(24).toString("hex"),
-              status: "PENDING",
-              // Guest name + phone stored in notes field
-              notes: JSON.stringify({
-                guestName: input.guestName,
-                guestPhone: input.guestPhone
-              })
+              status: "PENDING"
             },
             include: {
               seat: { select: { label: true } },
