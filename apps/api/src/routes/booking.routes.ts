@@ -3,7 +3,6 @@ import { Router } from "express";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
-import { requireAuth } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { bookingLimiter } from "../middleware/security.js";
 
@@ -24,16 +23,19 @@ const availabilitySchema = z.object({
   })
 });
 
+// Guest fields — no account needed
 const createBookingSchema = z.object({
   body: z.object({
     branchId: z.string(),
     seatId: z.string(),
     startAt: z.string().datetime(),
-    endAt: z.string().datetime()
+    endAt: z.string().datetime(),
+    guestName: z.string().min(2, "Please enter your full name"),
+    guestPhone: z.string().min(10, "Please enter a valid 10-digit mobile number").max(10)
   })
 });
 
-// ─── Availability ─────────────────────────────────────────────────────────────
+// ─── Availability (public) ────────────────────────────────────────────────────
 bookingRouter.get(
   "/availability",
   validate(availabilitySchema),
@@ -55,7 +57,6 @@ bookingRouter.get(
         }
       });
 
-      // Sort numerically so seat 1,2,3...10,11 not 1,10,11,2
       const sorted = (seats as AvailabilitySeat[]).sort(
         (a, b) => Number(a.label) - Number(b.label)
       );
@@ -77,10 +78,9 @@ bookingRouter.get(
   }
 );
 
-// ─── Create booking with concurrency lock ────────────────────────────────────
+// ─── Create booking — no sign-in required (guest booking) ────────────────────
 bookingRouter.post(
   "/",
-  requireAuth,
   bookingLimiter,
   validate(createBookingSchema),
   async (request, response, next) => {
@@ -90,28 +90,37 @@ bookingRouter.post(
       const endAt = new Date(input.endAt);
 
       if (startAt >= endAt) {
-        return response
-          .status(400)
-          .json({ message: "End time must be after start time" });
+        return response.status(400).json({ message: "End time must be after start time" });
+      }
+
+      // Optional: attach signed-in user account if token present
+      let userId: string | null = null;
+      const authHeader = request.headers.authorization;
+      if (authHeader?.startsWith("Bearer ")) {
+        try {
+          const jwt = (await import("jsonwebtoken")).default;
+          const { env } = await import("../config/env.js");
+          const decoded = jwt.verify(authHeader.slice(7), env.JWT_SECRET) as { sub: string };
+          userId = decoded.sub;
+        } catch { /* guest — no user attached */ }
       }
 
       const booking = await prisma.$transaction(
         async (transaction: Prisma.TransactionClient) => {
-          // Advisory lock — prevents two users booking same seat simultaneously
+          // Advisory lock — prevents race condition on same seat
           await transaction.$executeRaw`
             SELECT pg_advisory_xact_lock(hashtext(${input.seatId}))
           `;
 
-          // Prevent one user from holding multiple active seats
-          const existingUserBooking = await transaction.booking.findFirst({
-            where: {
-              userId: request.user!.sub,
-              status: { in: ["PENDING", "CONFIRMED", "CHECKED_IN"] }
-            },
-            select: { id: true }
-          });
-          if (existingUserBooking) {
-            throw new Error("You already have an active booking. Cancel it before booking a new seat.");
+          // If signed in — prevent multiple active bookings
+          if (userId) {
+            const existing = await transaction.booking.findFirst({
+              where: { userId, status: { in: ["PENDING", "CONFIRMED", "CHECKED_IN"] } },
+              select: { id: true }
+            });
+            if (existing) {
+              throw new Error("You already have an active booking. Cancel it before booking a new seat.");
+            }
           }
 
           const seat = await transaction.seat.findFirst({
@@ -133,20 +142,23 @@ bookingRouter.post(
             select: { id: true }
           });
 
-          if (conflict) {
-            throw new Error("Seat is no longer available");
-          }
+          if (conflict) throw new Error("Seat is no longer available");
 
-          // Status starts as PENDING — admin confirms after verifying UPI payment.
+          // PENDING — admin confirms after verifying UPI UTR number
           return transaction.booking.create({
             data: {
-              userId: request.user!.sub,
+              ...(userId ? { userId } : {}),
               branchId: input.branchId,
               seatId: input.seatId,
               startAt,
               endAt,
               qrToken: crypto.randomBytes(24).toString("hex"),
-              status: "PENDING"
+              status: "PENDING",
+              // Guest name + phone stored in notes field
+              notes: JSON.stringify({
+                guestName: input.guestName,
+                guestPhone: input.guestPhone
+              })
             },
             include: {
               seat: { select: { label: true } },
@@ -154,13 +166,14 @@ bookingRouter.post(
             }
           });
         },
-        {
-          isolationLevel: "Serializable" as const,
-          timeout: 10000
-        }
+        { isolationLevel: "Serializable" as const, timeout: 10000 }
       );
 
-      response.status(201).json(booking);
+      response.status(201).json({
+        ...booking,
+        guestName: input.guestName,
+        guestPhone: input.guestPhone
+      });
     } catch (error) {
       if (
         error instanceof Error &&
@@ -180,18 +193,11 @@ bookingRouter.post(
 // ─── Check in ────────────────────────────────────────────────────────────────
 bookingRouter.post(
   "/:id/check-in",
-  requireAuth,
   async (request, response, next) => {
     try {
       const booking = await prisma.booking.update({
         where: { id: String(request.params.id) },
-        data: {
-          status: "CHECKED_IN",
-          attendances: {
-            create: { userId: request.user!.sub }
-          }
-        },
-        include: { attendances: true }
+        data: { status: "CHECKED_IN" },
       });
       response.json(booking);
     } catch (error) {
