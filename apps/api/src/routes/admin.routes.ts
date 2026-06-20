@@ -88,8 +88,9 @@ adminRouter.get("/users", async (req, res, next) => {
       prisma.user.count({ where })
     ]);
 
+    const userList = users as Array<typeof users[number]>;
     res.json({
-      users: users.map((u) => ({
+      users: userList.map((u) => ({
         id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role,
         joinedAt: u.createdAt, totalBookings: u._count.bookings, lastBooking: u.bookings[0] ?? null
       })),
@@ -152,9 +153,10 @@ adminRouter.get("/seats", async (req, res, next) => {
     });
 
     // Sort numerically
-    const sorted = seats.sort((a, b) => Number(a.label) - Number(b.label));
+    const sorted = seats.sort((a: { label: string }, b: { label: string }) => Number(a.label) - Number(b.label));
 
-    res.json(sorted.map((s) => ({
+    const seatList = sorted as Array<typeof sorted[number]>;
+    res.json(seatList.map((s) => ({
       id: s.id,
       label: s.label,
       seatNumber: Number(s.label),
