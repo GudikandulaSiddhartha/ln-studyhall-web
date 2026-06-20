@@ -111,7 +111,6 @@ model Booking {
   endAt       DateTime
   qrToken     String        @unique
   status      BookingStatus @default(PENDING)
-  notes       String?       // JSON: { guestName, guestPhone } for guest bookings
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
