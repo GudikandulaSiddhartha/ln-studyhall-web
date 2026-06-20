@@ -44,10 +44,12 @@ export function BookingBoard() {
   const endDate = useMemo(() => addDays(startDate, 30), [startDate]);
   const selectedBranch = branches.find((b) => b.id === branchId) ?? branches[0]!;
 
-  // ── Load user ──────────────────────────────────────────────────────────────
+  // ── Load user if signed in (optional autofill) ─────────────────────────────
   useEffect(() => {
     const auth = getStoredAuth();
-    if (auth) setUserName(auth.user.name);
+    if (auth) {
+      setUserName(auth.user.name);
+    }
   }, []);
 
   // ── Fetch live seats from API ──────────────────────────────────────────────
@@ -110,40 +112,48 @@ export function BookingBoard() {
   // ── Confirm booking ────────────────────────────────────────────────────────
   async function confirmBooking() {
     if (!selected) return;
+
+    if (!userName.trim()) {
+      setSaveError("Please enter your full name.");
+      return;
+    }
+    if (!userPhone.trim() || userPhone.length < 10) {
+      setSaveError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
     setSaveState("saving");
     setSaveError(null);
 
+    // Attach token if signed in (optional — not required)
     const auth = getStoredAuth();
-    if (!auth) {
-      setSaveError("Please sign in to book a seat.");
-      setSaveState("error");
-      return;
-    }
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (auth?.token) headers["Authorization"] = `Bearer ${auth.token}`;
 
     try {
       const res = await fetch(`${API_URL}/bookings`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.token}`
-        },
+        headers,
         body: JSON.stringify({
           branchId,
           seatId: selected,
           startAt: startDate.toISOString(),
-          endAt: endDate.toISOString()
+          endAt: endDate.toISOString(),
+          guestName: userName.trim(),
+          guestPhone: userPhone.trim()
         })
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? "Booking failed");
 
-      // Save locally for dashboard
       localStorage.setItem("ln_active_booking", JSON.stringify({
         id: data.id,
         branch: selectedBranch.name,
         branchId,
         seat: selectedSeatLabel,
+        guestName: userName.trim(),
+        guestPhone: userPhone.trim(),
         plan: "Monthly Pass",
         amount: monthlyAmount,
         startDate: startDate.toISOString(),
@@ -153,7 +163,6 @@ export function BookingBoard() {
       }));
 
       setSaveState("saved");
-      // Refresh seats so booked seat shows as unavailable
       await fetchSeats();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Booking failed. Please try again.");
@@ -274,9 +283,12 @@ export function BookingBoard() {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between gap-4">
               <span>Name</span>
-              <span className="text-right font-semibold">
-                {userName || <span className="text-slate-400">Sign in to autofill</span>}
-              </span>
+              <input
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="Enter your full name"
+                className="w-44 bg-transparent text-right font-semibold outline-none placeholder:font-normal placeholder:text-slate-400"
+              />
             </div>
             <div className="flex items-center justify-between gap-4">
               <span>Mobile</span>
